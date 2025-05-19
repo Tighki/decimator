@@ -1,0 +1,10 @@
+html, body, #root, .App {
+    position: relative;
+    overflow: auto;
+    height: 100% !important;
+    margin: 0;
+    padding: 0;
+}
+.react-toast-notifications__container {
+    z-index: 1400 !important;
+}
