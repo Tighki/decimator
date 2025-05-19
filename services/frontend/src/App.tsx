@@ -5,13 +5,14 @@ import {Route} from "react-router";
 import SignIn from "./components/auth/SignIn";
 import SignUp from "./components/auth/SignUp";
 import HomePage from "./components/Home";
-
+import AdminPanel from "./components/admin/AdminPanel";
 
 const App: React.FC = () => {
   return (
       <React.Fragment>
         <Switch>
           <PrivateRoute exact path='/' component={HomePage}/>
+          <PrivateRoute path='/admin' component={AdminPanel}/>
           <Route path={'/login'} component={SignIn}/>
           <Route path={'/registration'} component={SignUp}/>
         </Switch>

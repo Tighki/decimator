@@ -80,6 +80,10 @@ const MainAppBar = ({currentUser, selectedOrg}: MainAppBarProps) => {
         window.location.href = '/';
     }
 
+    const navigateToAdminPanel = () => {
+        history.push('/admin');
+    }
+
     return (
         <AppBar position="absolute" className={classes.appBar}>
             <Toolbar>
@@ -132,6 +136,9 @@ const MainAppBar = ({currentUser, selectedOrg}: MainAppBarProps) => {
                         onClose={handleClose}
                     >
                         <MenuItem onClick={handleClose}>Профиль</MenuItem>
+                        {currentUser?.isSuper && (
+                            <MenuItem onClick={navigateToAdminPanel}>Панель администратора</MenuItem>
+                        )}
                         <MenuItem onClick={logOut}>Выйти</MenuItem>
                     </Menu>
                 </div>
