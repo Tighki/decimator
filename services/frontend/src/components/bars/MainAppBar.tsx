@@ -11,7 +11,7 @@ import {useHistory} from "react-router-dom";
 import {I_CurrentUser} from "../../types/user";
 import {capitalizeFirstLetter} from "../../utils/common";
 import {I_Organization} from "../../types/org";
-import {Divider, ListItemText} from "@material-ui/core";
+import {ListItemText} from "@material-ui/core";
 
 const useStyles = makeStyles((theme: Theme) => ({
     appBar: {
@@ -25,6 +25,7 @@ const useStyles = makeStyles((theme: Theme) => ({
     },
     title: {
         flexGrow: 1,
+        cursor: 'pointer',
     },
     avatar: {
         display: 'flex',
@@ -75,10 +76,21 @@ const MainAppBar = ({currentUser, selectedOrg}: MainAppBarProps) => {
         history.push('/login')
     }
 
+    const navigateToHome = () => {
+        window.location.href = '/';
+    }
+
     return (
         <AppBar position="absolute" className={classes.appBar}>
             <Toolbar>
-                <Typography component="h1" variant="h6" color="inherit" noWrap className={classes.title}>
+                <Typography 
+                    component="h1" 
+                    variant="h6" 
+                    color="inherit" 
+                    noWrap 
+                    className={classes.title} 
+                    onClick={navigateToHome}
+                >
                     DecimatorWeb
                 </Typography>
                 <div className={classes.selectedOrg}>
