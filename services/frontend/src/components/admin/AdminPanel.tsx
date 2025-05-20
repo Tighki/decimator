@@ -627,9 +627,6 @@ const AdminPanel: React.FC = () => {
     <>
       <MainAppBar currentUser={currentUser} selectedOrg={null} />
       <Container className={classes.root}>
-        <Typography variant="h4" component="h1" className={classes.title}>
-          Панель администратора
-        </Typography>
         
         {/* Карточки со статистикой */}
         <Grid container spacing={3} className={classes.statsContainer}>
