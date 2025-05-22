@@ -1,0 +1,9 @@
+fastapi
+databases
+motor
+python-dotenv
+uvicorn
+requests
+aiofiles
+fastapi-jwt-auth
+bcrypt 

@@ -66,7 +66,20 @@ class FolderManager(BaseManager):
         return False if await self.collection.find_one(fields_filter) else True
 
     async def get_folders(self, *, fgs_id: OID) -> List[FolderInfo]:
-        db_folders = self.collection.find({'folderGroupId': fgs_id}).sort('name')
+        # Используем проекцию для получения только необходимых полей для ускорения запроса
+        # Исключаем reserves, т.к. они не используются в основном интерфейсе
+        projection = {
+            "name": 1, 
+            "_id": 1, 
+            "folderGroupId": 1,
+            "createdAt": 1
+        }
+        # Используем индексированную сортировку для ускорения запроса
+        db_folders = self.collection.find(
+            {'folderGroupId': fgs_id}, 
+            projection=projection
+        ).sort('name', 1)  # 1 означает по возрастанию
+        
         return [FolderInfo(**db_folder) async for db_folder in db_folders]
 
     async def remove_folder(self, *, folder_id: OID) -> bool:
