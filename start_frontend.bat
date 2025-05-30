@@ -1,6 +1,6 @@
 @ECHO OFF
 
-cd /d "C:\Users\Tighki\Desktop\decimator-main\services\frontend"
+cd /d "C:\Users\Administrator\Desktop\dec\services\frontend"
 echo Установка зависимостей...
 call npm install
 echo Запуск frontend...

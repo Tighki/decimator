@@ -4,6 +4,6 @@ python -m venv .venv
 call .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install wheel
-pip uninstall -y pydantic pydantic-core
+pip install bcrypt --only-binary=:all:
 pip install -r requirements.txt
-python run_service.py
+echo "Установка завершена!" 

@@ -6,4 +6,5 @@ uvicorn
 requests
 aiofiles
 fastapi-jwt-auth
-bcrypt 
+passlib[bcrypt]
+pydantic==1.10.13 
