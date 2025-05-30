@@ -10,7 +10,7 @@ import {
     TextField,
     Typography
 } from "@material-ui/core";
-import React, {useEffect} from "react";
+import React, {useEffect, useCallback} from "react";
 import {getToken} from "../../../utils/auth";
 import {useToasts} from "react-toast-notifications";
 import {I_FolderGroup, I_FolderGroupBase, I_Organization} from "../../../types/org";
@@ -48,7 +48,7 @@ const OrgFolderGroups = ({org}: OrgFolderGroupsProp) => {
     const [name, setName] = React.useState<string>('');
     const [description, setDescription] = React.useState<string | undefined>('');
 
-    const fetchFolderGroups = () => {
+    const fetchFolderGroups = useCallback(() => {
         const headers = new Headers();
 
         let token = getToken()
@@ -81,7 +81,7 @@ const OrgFolderGroups = ({org}: OrgFolderGroupsProp) => {
                     autoDismiss: true,
                 });
             });
-    };
+    }, [org, addToast]);
 
     const addFolderGroup = (data: I_FolderGroupBase) => {
         const headers = new Headers();
@@ -121,7 +121,7 @@ const OrgFolderGroups = ({org}: OrgFolderGroupsProp) => {
 
     useEffect(() => {
         fetchFolderGroups();
-    }, []);
+    }, [fetchFolderGroups]);
 
     const handleChange = (event: any) => {
         event.preventDefault();

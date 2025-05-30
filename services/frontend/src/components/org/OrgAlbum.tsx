@@ -1,4 +1,4 @@
-import React, {useEffect} from "react";
+import React, {useEffect, useCallback} from "react";
 import Card from "@material-ui/core/Card";
 import CardActionArea from "@material-ui/core/CardActionArea";
 import CardContent from "@material-ui/core/CardContent";
@@ -79,7 +79,7 @@ const OrgAlbum = ({currentUser, setPending, setSelectedOrg}: OrgAlbumProps) => {
         setOrgs([...orgs, new_org]);
     };
 
-    const getUserOrgs = () => {
+    const getUserOrgs = useCallback(() => {
         const headers = new Headers();
 
         let token = getToken()
@@ -114,7 +114,7 @@ const OrgAlbum = ({currentUser, setPending, setSelectedOrg}: OrgAlbumProps) => {
                     autoDismiss: true,
                 });
             });
-    };
+    }, [setPending, addToast]);
 
     const deleteOrg = (org_id: string) => {
         const headers = new Headers();
@@ -192,7 +192,7 @@ const OrgAlbum = ({currentUser, setPending, setSelectedOrg}: OrgAlbumProps) => {
 
     useEffect(() => {
         getUserOrgs();
-    }, []);
+    }, [getUserOrgs]);
 
     const onOpenCreateOrgDialogButtonClicked = (event: any) => {
         event.preventDefault();

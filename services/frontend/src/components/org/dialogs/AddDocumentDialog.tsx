@@ -92,6 +92,7 @@ const AddDocumentDialog = ({open, setOpen, currentUser, selectedFolder, document
         let token = getToken()
         headers.append("Authorization", token);
         headers.append("Accept", 'application/json');
+        headers.append("Content-Type", 'application/json');
 
         const options = {
             method: 'POST',
@@ -102,11 +103,16 @@ const AddDocumentDialog = ({open, setOpen, currentUser, selectedFolder, document
         const route = `http://${process.env.REACT_APP_API_URI}/api/v1/documents`;
         fetch(route, options)
             .then(res => {
+                if (!res.ok) {
+                    return res.json().then(data => {
+                        throw new Error(data.detail || 'Ошибка сервера');
+                    });
+                }
                 return res.json();
             })
             .then(res => {
                 if (res['detail']) {
-                    throw (res['detail']);
+                    throw new Error(res['detail']);
                 }
                 // addToast('Документ создан!', {
                 //     appearance: 'success',
@@ -116,7 +122,8 @@ const AddDocumentDialog = ({open, setOpen, currentUser, selectedFolder, document
                 setDocuments([...documents, res].sort((a: I_Document, b: I_Document) => a.number < b.number ? -1 : 1))
             })
             .catch(error => {
-                addToast('При создании документа произошла ошибка...', {
+                console.error('Ошибка при создании документа:', error);
+                addToast(`При создании документа произошла ошибка: ${error.message || ''}`, {
                     appearance: 'error',
                     autoDismiss: true,
                 });
@@ -145,18 +152,20 @@ const AddDocumentDialog = ({open, setOpen, currentUser, selectedFolder, document
             });
             return
         }
-        // @ts-ignore
-        const vi: number = parseInt(version);
-        isNaN(vi) ? setVersion(null) : setVersion(vi)
-
-        createNewDocument({
+        
+        // Преобразуем version в строку или пустую строку, если он пустой или null
+        const versionStr = version === null || version === '' ? '' : String(version);
+        
+        const documentData = {
             folderId: selectedFolder?._id,
             comment,
-            number,
+            number: parseInt(number.toString()),
             authorId: currentUser?._id,
-            version,
-            project
-        });
+            version: versionStr,
+            project: project || ''
+        };
+        
+        createNewDocument(documentData);
         handleClose();
     };
 

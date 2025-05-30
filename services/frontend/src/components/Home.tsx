@@ -1,4 +1,4 @@
-import React, {useEffect} from "react";
+import React, {useEffect, useCallback} from "react";
 import {makeStyles, Theme} from "@material-ui/core/styles";
 
 import {useHistory} from "react-router-dom";
@@ -11,9 +11,9 @@ import MainAppBar from "./bars/MainAppBar";
 import {I_Organization} from "../types/org";
 import OrgAlbum from "./org/OrgAlbum";
 import DrawerSideBar from "./bars/DrawerSideBar";
-import {I_Folder} from "../types/folder";
 import DocumentsTable from "./org/table/DocumentsTable";
 import {I_Document} from "../types/document";
+import {I_Folder} from "../types/folder";
 
 
 const useStyles = makeStyles((theme: Theme) => ({
@@ -61,7 +61,7 @@ const HomePage = () => {
     const [folders, setFolders] = React.useState<I_Folder[]>([]);
     const [documents, setDocuments] = React.useState<I_Document[]>([]);
 
-    const getCurrentUser = () => {
+    const getCurrentUser = useCallback(() => {
         const headers = new Headers();
         let token = getToken()
         headers.append("Authorization", token);
@@ -96,9 +96,9 @@ const HomePage = () => {
                 localStorage.removeItem('current_user');
                 history.push('/login');
             });
-    };
+    }, [history, addToast, setPending]);
 
-    const fetchDocuments = (folderId: string | undefined) => {
+    const fetchDocuments = useCallback((folderId: string | undefined) => {
         const headers = new Headers();
         let token = getToken()
         headers.append("Authorization", token);
@@ -129,7 +129,7 @@ const HomePage = () => {
                     autoDismiss: true,
                 });
             });
-    };
+    }, [addToast]);
 
     const fetchFolders = (fgsId: string | null) => {
         const headers = new Headers();
@@ -172,13 +172,13 @@ const HomePage = () => {
 
     useEffect(() => {
         getCurrentUser();
-    }, []);
+    }, [getCurrentUser]);
 
     useEffect(() => {
         if (Boolean(selectedFolder)) {
             fetchDocuments(selectedFolder?._id)
         }
-    }, [selectedFolder]);
+    }, [selectedFolder, fetchDocuments]);
 
     // useEffect(() => {
     //     reFetchFolders();
