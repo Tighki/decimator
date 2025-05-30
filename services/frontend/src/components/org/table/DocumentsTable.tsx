@@ -1,7 +1,7 @@
 import * as React from 'react';
 // @ts-ignore
 import {ColDef, DataGrid, ValueGetterParams, GridPageChangeParams, GridSortModelParams} from '@material-ui/data-grid';
-import {Typography, TextField, MenuItem, FormControl, InputLabel, Select, Paper, InputAdornment, IconButton, Button, Chip} from "@material-ui/core";
+import {Typography, TextField, MenuItem, FormControl, InputLabel, Select, Paper, InputAdornment, IconButton, Button, Chip, CircularProgress} from "@material-ui/core";
 import {makeStyles} from "@material-ui/core/styles";
 import EditIcon from "@material-ui/icons/Edit";
 import DeleteIcon from "@material-ui/icons/Delete";
@@ -15,6 +15,8 @@ import {Info, Lock, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, 
 import {I_Organization} from "../../../types/org";
 import EditDocumentDialog from '../dialogs/EditDocumentDialog';
 import DocumentInfoDialog from '../dialogs/DocumentInfoDialog';
+import {getToken} from "../../../utils/auth";
+import {useToasts} from "react-toast-notifications";
 
 export const capitalizeFirstLetter = (str: string) => {
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -133,6 +135,13 @@ const useStyles = makeStyles((theme) => ({
         '& .MuiDataGrid-columnHeader:focus-within': {
             outline: 'none',
         }
+    },
+    loadingContainer: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: theme.spacing(3),
+        width: '100%'
     }
 }));
 
@@ -156,6 +165,7 @@ const DocumentsTable = ({
                             selectedOrg
                         }: TableProp) => {
     const classes = useStyles();
+    const { addToast } = useToasts();
     const [openAddDialog, setOpenAddDialog] = React.useState<boolean>(false);
     const [openEditDialog, setOpenEditDialog] = React.useState<boolean>(false);
     const [openInfoDialog, setOpenInfoDialog] = React.useState<boolean>(false);
@@ -170,6 +180,9 @@ const DocumentsTable = ({
     const [searchText, setSearchText] = React.useState<string>('');
     const [filteredDocuments, setFilteredDocuments] = React.useState<I_Document[]>(documents);
     const [sortModel, setSortModel] = React.useState<any>([]);
+
+    const [isLoading, setIsLoading] = React.useState<boolean>(false);
+    const documentsCache = React.useRef<{[folderId: string]: I_Document[]}>({});
 
     const handleFilterFieldChange = (event: React.ChangeEvent<{ value: unknown }>) => {
         setFilterField(event.target.value as string);
@@ -462,6 +475,90 @@ const DocumentsTable = ({
         </div>
     );
 
+    // Добавляем функции для загрузки документов с пагинацией
+    const fetchDocumentsWithPagination = async (
+        folderId: string,
+        skip: number = 0,
+        limit: number = 100,
+        setDocuments: Function, 
+        onError: Function
+    ) => {
+        try {
+            const headers = new Headers();
+            const token = getToken();
+            headers.append("Authorization", token);
+            headers.append("Accept", "application/json");
+
+            const options = {
+                method: 'GET',
+                headers
+            };
+
+            // Используем параметры пагинации
+            const route = `http://${process.env.REACT_APP_API_URI}/api/v1/documents/?folder_id=${folderId}&skip=${skip}&limit=${limit}`;
+            
+            console.log(`Загрузка документов для папки ${folderId}, пропуск: ${skip}, лимит: ${limit}`);
+            
+            const response = await fetch(route, options);
+            
+            if (!response.ok) {
+                throw new Error(`Ошибка HTTP: ${response.status}`);
+            }
+            
+            const documents = await response.json();
+            
+            if (Array.isArray(documents)) {
+                setDocuments(documents);
+            }
+        } catch (error) {
+            console.error("Ошибка при загрузке документов:", error);
+            onError("Не удалось загрузить документы...");
+        }
+    };
+
+    // Используем эффект для загрузки документов при изменении выбранной папки
+    React.useEffect(() => {
+        if (!selectedFolder) return;
+        
+        setIsLoading(true);
+        
+        // Проверяем кэш перед запросом
+        if (documentsCache.current[selectedFolder._id]) {
+            console.log(`Используем кэшированные документы для папки ${selectedFolder.name}`);
+            setDocuments(documentsCache.current[selectedFolder._id]);
+            setIsLoading(false);
+            return;
+        }
+        
+        const loadDocuments = async () => {
+            try {
+                await fetchDocumentsWithPagination(
+                    selectedFolder._id, 
+                    0, 
+                    1000, // Увеличиваем лимит для загрузки всех документов сразу
+                    (loadedDocs: I_Document[]) => {
+                        setDocuments(loadedDocs);
+                        // Сохраняем в кэш
+                        documentsCache.current[selectedFolder._id] = loadedDocs;
+                    },
+                    (errorMessage: string) => {
+                        addToast(errorMessage, {
+                            appearance: 'error',
+                            autoDismiss: true,
+                        });
+                    }
+                );
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        // Добавляем небольшую задержку для предотвращения множественных запросов
+        const timerId = setTimeout(loadDocuments, 100);
+        
+        return () => clearTimeout(timerId);
+    }, [selectedFolder, setDocuments, addToast]);
+
     // @ts-ignore
     return (
         <div className={classes.container}>
@@ -551,27 +648,36 @@ const DocumentsTable = ({
                 </Typography>
             )}
             
-            <div className={classes.dataGridContainer}>
-                <DataGrid 
-                    rows={filteredDocuments} 
-                    columns={columns} 
-                    pageSize={pageSize} 
-                    page={page}
-                    onPageChange={handlePageChange}
-                    getRowId={(row) => row._id}
-                    hideFooterPagination
-                    hideFooter
-                    sortModel={sortModel}
-                    onSortModelChange={handleSortModelChange}
-                    className={classes.hideSortIcons}
-                    disableColumnMenu={true}
-                    disableColumnFilter={true}
-                    disableMultipleColumnsSorting={true}
-                    disableSelectionOnClick={true}
-                />
-                
-                {paginationComponent}
-            </div>
+            {isLoading ? (
+                <div className={classes.loadingContainer}>
+                    <CircularProgress />
+                    <Typography variant="body1" style={{ marginLeft: 16 }}>
+                        Загрузка документов...
+                    </Typography>
+                </div>
+            ) : (
+                <div className={classes.dataGridContainer}>
+                    <DataGrid 
+                        rows={filteredDocuments} 
+                        columns={columns} 
+                        pageSize={pageSize} 
+                        page={page}
+                        onPageChange={handlePageChange}
+                        getRowId={(row) => row._id}
+                        hideFooterPagination
+                        hideFooter
+                        sortModel={sortModel}
+                        onSortModelChange={handleSortModelChange}
+                        className={classes.hideSortIcons}
+                        disableColumnMenu={true}
+                        disableColumnFilter={true}
+                        disableMultipleColumnsSorting={true}
+                        disableSelectionOnClick={true}
+                    />
+                    
+                    {paginationComponent}
+                </div>
+            )}
             
             <AddDocumentDialog 
                 open={openAddDialog}

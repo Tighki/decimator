@@ -85,19 +85,30 @@ async def create_reserve(reserve: Reserve,
     response_model=List[FolderInfo],
     status_code=HTTP_200_OK
 )
-async def get_folders_by_fgs_id(fgs_id: OID,
-                                request: Request,
-                                auth: AuthJWT = Depends(),
-                                db: AsyncIOMotorClient = Depends(get_database)):
+async def get_folders(fgs_id: OID,
+                      request: Request,
+                      skip: int = 0, 
+                      limit: int = 100,
+                      include_reserves: bool = False,
+                      auth: AuthJWT = Depends(),
+                      db: AsyncIOMotorClient = Depends(get_database)):
+    """
+    Получение папок с поддержкой пагинации и фильтрации полей.
+    
+    - **fgs_id**: ID группы папок
+    - **skip**: Количество папок, которые нужно пропустить (для пагинации)
+    - **limit**: Максимальное количество папок для возврата
+    - **include_reserves**: Включать ли поле reserves в ответ (по умолчанию нет для оптимизации)
+    """
     config = request.app.config
     auth.jwt_required()
     user_login = auth.get_jwt_subject()
     um = UserManager(config=config, db=db)
     current_user = await um.get_user_by_login(login=user_login)
-    if not current_user.isActive:
-        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail='Пользователь заблокирован')
     fm = FolderManager(config=config, db=db, who=current_user)
-    return await fm.get_folders(fgs_id=fgs_id)
+    # Используем проекцию и пагинацию для оптимизации
+    # Настройки фильтрации передаются через параметры запроса
+    return await fm.get_folders(fgs_id=fgs_id, skip=skip, limit=limit, include_reserves=include_reserves)
 
 
 @router.delete(

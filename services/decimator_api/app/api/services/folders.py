@@ -65,22 +65,42 @@ class FolderManager(BaseManager):
     async def is_entity_available(self, *, fields_filter: dict) -> bool:
         return False if await self.collection.find_one(fields_filter) else True
 
-    async def get_folders(self, *, fgs_id: OID) -> List[FolderInfo]:
-        # Используем проекцию для получения только необходимых полей для ускорения запроса
-        # Исключаем reserves, т.к. они не используются в основном интерфейсе
+    async def get_folders(self, *, fgs_id: OID, skip: int = 0, limit: int = 100, include_reserves: bool = False) -> List[FolderInfo]:
+        """
+        Получение папок с пагинацией и селективным включением полей для оптимизации
+        
+        :param fgs_id: ID группы папок
+        :param skip: Смещение для пагинации
+        :param limit: Лимит для пагинации
+        :param include_reserves: Включать ли поле reserves (для оптимизации)
+        """
+        # Определяем проекцию для оптимизации запроса
         projection = {
             "name": 1, 
             "_id": 1, 
             "folderGroupId": 1,
-            "createdAt": 1
+            "created": 1
         }
-        # Используем индексированную сортировку для ускорения запроса
+        
+        # Включаем reserves только если необходимо
+        if include_reserves:
+            projection["reserves"] = 1
+            
+        # Используем индексированную сортировку по имени для ускорения запроса
         db_folders = self.collection.find(
             {'folderGroupId': fgs_id}, 
             projection=projection
-        ).sort('name', 1)  # 1 означает по возрастанию
+        ).sort('name', 1).skip(skip).limit(limit)  # 1 означает по возрастанию
         
-        return [FolderInfo(**db_folder) async for db_folder in db_folders]
+        # Преобразуем результаты в модели
+        folders = []
+        async for db_folder in db_folders:
+            # Если reserves не были запрошены, добавляем пустой список для совместимости с моделью
+            if 'reserves' not in db_folder:
+                db_folder['reserves'] = []
+            folders.append(FolderInfo(**db_folder))
+            
+        return folders
 
     async def remove_folder(self, *, folder_id: OID) -> bool:
         db_folder = await self.get_data_by_id(folder_id)

@@ -131,7 +131,7 @@ const HomePage = () => {
             });
     }, [addToast]);
 
-    const fetchFolders = (fgsId: string | null) => {
+    const fetchFolders = useCallback((fgsId: string | null) => {
         const headers = new Headers();
 
         let token = getToken()
@@ -164,11 +164,11 @@ const HomePage = () => {
                     autoDismiss: true,
                 });
             });
-    };
+    }, [addToast]);
 
-    const reFetchFolders = () => {
+    const reFetchFolders = useCallback(() => {
         fetchFolders(selectedFgsId);
-    };
+    }, [fetchFolders, selectedFgsId]);
 
     useEffect(() => {
         getCurrentUser();
@@ -180,9 +180,16 @@ const HomePage = () => {
         }
     }, [selectedFolder, fetchDocuments]);
 
-    // useEffect(() => {
-    //     reFetchFolders();
-    // }, [selectedFgsId]);
+    // Активируем этот хук, но с проверкой для предотвращения бесконечных циклов
+    useEffect(() => {
+        // Обновляем папки только когда ID группы папок действительно изменился
+        // и не является пустым значением
+        if (selectedFgsId && localStorage.getItem('last_fetched_fgs_id') !== selectedFgsId) {
+            console.log(`Загрузка папок для группы: ${selectedFgsId}`);
+            localStorage.setItem('last_fetched_fgs_id', selectedFgsId);
+            reFetchFolders();
+        }
+    }, [selectedFgsId, reFetchFolders]);
 
     return (
         <div className={classes.root}>

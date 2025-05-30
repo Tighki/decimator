@@ -34,7 +34,6 @@ import {I_CurrentUser} from "../../types/user";
 import AddFolderDialog from "../org/dialogs/AddFolderDialog";
 import DeleteFolderDialog from "../org/dialogs/DeleteFolderDialog";
 import EditFolderDialog from "../org/dialogs/EditFolderDialog";
-import {I_Document} from "../../types/document";
 
 
 const useStyles = makeStyles((theme: Theme) => ({
@@ -272,6 +271,9 @@ const DrawerSideBar = ({
     // Создаем useRef для хранения функции fetchFolders
     const fetchFoldersRef = React.useRef(initialFetchFolders);
 
+    // Кэш для проектов
+    const projectsCache = React.useRef<{[fgsId: string]: string[]}>({});
+    
     // Функция фильтрации папок с учетом как имени папки, так и проектов в ней
     const getFilteredFolders = () => {
         // Сначала фильтруем по имени папки
@@ -297,9 +299,27 @@ const DrawerSideBar = ({
     // Добавляем локальное кэширование данных по категориям папок
     const folderGroupsCache = React.useRef<{[key: string]: I_Folder[]}>({});
 
-    // Функция для загрузки списка проектов и обновления фильтра папок
-    const fetchProjects = React.useCallback(async (folder: I_Folder | null) => {
-        if (!folder || !selectedOrg) return;
+    // Функция для загрузки списка проектов всех папок в группе
+    const fetchAllProjects = React.useCallback(async () => {
+        if (!selectedOrg || !selectedFgsId) return;
+        
+        // Проверяем кэш перед загрузкой
+        if (projectsCache.current[selectedFgsId]) {
+            console.log(`Используем кэшированные проекты для группы ${selectedFgsId}`);
+            setProjects(projectsCache.current[selectedFgsId]);
+            return;
+        }
+        
+        // Проверяем, была ли недавно загрузка всех проектов
+        const lastAllFetchTime = parseInt(localStorage.getItem(`last_fetch_projects_${selectedFgsId}`) || '0');
+        const currentTime = Date.now();
+        if (currentTime - lastAllFetchTime < 10000) { // 10 секунд между полными обновлениями
+            console.log(`Пропускаем загрузку проектов для группы ${selectedFgsId}, прошло менее 10 секунд`);
+            return;
+        }
+        
+        console.log(`Загрузка проектов для группы папок ${selectedFgsId}...`);
+        localStorage.setItem(`last_fetch_projects_${selectedFgsId}`, currentTime.toString());
         
         const headers = new Headers();
         let token = getToken()
@@ -312,101 +332,56 @@ const DrawerSideBar = ({
         };
         
         try {
-            const route = `http://${process.env.REACT_APP_API_URI}/api/v1/documents/?folder_id=${folder._id}`;
+            // Используем новый эндпоинт, который получает проекты для всех папок группы одним запросом
+            const route = `http://${process.env.REACT_APP_API_URI}/api/v1/documents/by_folder_group/${selectedFgsId}`;
             const response = await fetch(route, options);
             
             if (!response.ok) {
                 throw new Error(`Ошибка HTTP: ${response.status}`);
             }
             
-            const documents: I_Document[] = await response.json();
+            const folderProjectsData = await response.json();
             
-            if (Array.isArray(documents)) {
-                const folderProjects = documents
-                    .map(doc => doc.project)
-                    .filter(project => project && project.trim() !== '');
-                
-                // Обновляем проекты для данной папки
-                const uniqueProjects = Array.from(new Set(folderProjects));
-                const newFoldersWithProjects = new Map(foldersWithProjects);
-                newFoldersWithProjects.set(folder._id, uniqueProjects);
-                setFoldersWithProjects(newFoldersWithProjects);
-                
-                // Обновляем общий список проектов
-                const allProjectsSet = new Set(projects);
-                folderProjects.forEach(project => allProjectsSet.add(project));
-                setProjects(Array.from(allProjectsSet).sort());
-            }
+            // Обрабатываем полученные данные
+            const allProjects = new Set<string>();
+            const folderProjectsMap = new Map<string, string[]>();
+            
+            // Преобразуем полученные данные в нужный формат
+            Object.entries(folderProjectsData).forEach(([folderId, projects]) => {
+                folderProjectsMap.set(folderId, projects as string[]);
+                (projects as string[]).forEach((project: string) => allProjects.add(project));
+            });
+            
+            const sortedProjects = Array.from(allProjects).sort();
+            setProjects(sortedProjects);
+            setFoldersWithProjects(folderProjectsMap);
+            
+            // Сохраняем в кэш
+            projectsCache.current[selectedFgsId] = sortedProjects;
         } catch (error) {
-            console.error(`Ошибка при загрузке документов для папки ${folder.name}:`, error);
+            console.error("Ошибка при загрузке проектов:", error);
         }
-    }, [selectedOrg, projects, foldersWithProjects]);
+    }, [selectedOrg, selectedFgsId]);
 
-    // Загружаем проекты при выборе новой папки
+    // Обновляем список проектов при изменении списка папок или группы папок
     React.useEffect(() => {
-        if (selectedFolder) {
-            fetchProjects(selectedFolder);
+        if (selectedFgsId) {
+            // Используем debounce для предотвращения частых запросов
+            const timerId = setTimeout(() => {
+                fetchAllProjects();
+            }, 300); // Задержка в 300 мс
+            
+            return () => clearTimeout(timerId);
         }
-    }, [selectedFolder, fetchProjects]);
-
-    // Загружаем проекты при изменении списка папок - начальная загрузка
-    const fetchAllProjects = React.useCallback(async () => {
-        if (!selectedOrg || folders.length === 0) return;
-        
-        const headers = new Headers();
-        let token = getToken()
-        headers.append("Authorization", token);
-        headers.append("Accept", "application/json");
-        
-        const options = {
-            method: 'GET',
-            headers
-        };
-        
-        // Создаем новую карту проектов
-        const folderProjectsMap = new Map<string, string[]>();
-        const allProjects = new Set<string>();
-        
-        // Загружаем проекты только для первых 5 папок, чтобы не перегружать сервер
-        const foldersToLoad = folders.slice(0, 5);
-        
-        for (const folder of foldersToLoad) {
-            try {
-                const route = `http://${process.env.REACT_APP_API_URI}/api/v1/documents/?folder_id=${folder._id}`;
-                const response = await fetch(route, options);
-                
-                if (!response.ok) {
-                    throw new Error(`Ошибка HTTP: ${response.status}`);
-                }
-                
-                const documents: I_Document[] = await response.json();
-                
-                if (Array.isArray(documents)) {
-                    const folderProjects = documents
-                        .map(doc => doc.project)
-                        .filter(project => project && project.trim() !== '');
-                    
-                    // Добавляем проекты в общий список
-                    folderProjects.forEach(project => allProjects.add(project));
-                    
-                    // Сохраняем список проектов для этой папки
-                    folderProjectsMap.set(folder._id, Array.from(new Set(folderProjects)));
-                }
-            } catch (error) {
-                console.error(`Ошибка при загрузке документов для папки ${folder.name}:`, error);
-            }
-        }
-        
-        setProjects(Array.from(allProjects).sort());
-        setFoldersWithProjects(folderProjectsMap);
-    }, [selectedOrg, folders]);
-
-    // Обновляем список проектов при изменении списка папок
+    }, [selectedFgsId, fetchAllProjects]);
+    
+    // При изменении selectedFgsId также обновляем выбранную папку
     React.useEffect(() => {
-        if (folders.length > 0) {
-            fetchAllProjects();
+        if (selectedFgsId && selectedFolder && selectedFolder.folderGroupId !== selectedFgsId) {
+            setSelectedFolder(null);
+            setDocuments([]);
         }
-    }, [folders, fetchAllProjects]);
+    }, [selectedFgsId, selectedFolder, setSelectedFolder, setDocuments]);
 
     const fetchFolderGroups = React.useCallback(() => {
         // Предотвращаем запрос если нет выбранной организации
